@@ -3,6 +3,39 @@ import sentencepiece as spm
 import os
 from sklearn.model_selection import train_test_split
 
+def combine_author(df: pd.DataFrame, author_col: str, content_col: str, 
+                   out_col: str | None = None, separator: str = ': ') -> pd.DataFrame:
+    """Combine an author column and a content column under one column using a separator.
+
+    Args:
+        df (pd.DataFrame): Origin of the dataset which author column and content column are located
+        author_col (str): Name of the author column in the dataset.
+        content_col (str): Name of the content column in the dataset.
+        out_col (str | None, optional): Name of the new column to be created. If None, uses content_col as the new column. Defaults to None.
+        separator (_type_, optional): Separator that combines the author and content under one column. Defaults to ': '.
+
+    Returns:
+        pd.DataFrame: Dataframe with a column that combines both author and content.
+    """
+    if out_col is not None:
+        df[out_col] = df[author_col] + separator + df[content_col]
+    else:
+        df[content_col] = df[author_col] + separator + df[content_col]
+    return df
+
+def select_columns(df: pd.DataFrame, selected_cols: list[str]) -> pd.DataFrame:
+    """Select columns to keep within the dataframe.
+
+    Args:
+        df (pd.DataFrame): Origin of the dataset.
+        selected_col (list[str]): Columns to keep inside the dataset.
+
+    Returns:
+        pd.DataFrame: Filtered dataset where only the selected columns are kept.
+    """
+    df = df[selected_cols]
+    return df
+
 def balance_binary_classes(majority: pd.DataFrame, minority: pd.DataFrame, upsample: bool = True,
                     shuffle: bool = True, random_state: int | None = None) -> pd.DataFrame:
     """Balances binary classes given the majority label dataframe and minority label dataframe.
@@ -116,12 +149,28 @@ def process_data(df: pd.DataFrame, feature_col: str, label_col: str, **kwargs) -
     """
     
     # Kwargs
+    df_name = kwargs.get('df_name')
     corpus_path = os.path.join(kwargs.get('dataset_dir','..//datasets'), 'corpus.txt')
     tokenizer_dir = kwargs.get('tokenizer_dir', os.path.join('..','models','bpe'))
     model_prefix = kwargs.get('model_prefix', 'spm')
     vocab_size = kwargs.get('vocab_size', 8000)
     model_type = kwargs.get('model_type', 'bpe')
     pad_id = kwargs.get('pad_id', 3)
+    
+    # Specific Dataset Processes
+    # Combine Author and Content
+    if df_name == 'Philippine Fake News Corpus.csv':
+        df = combine_author(
+            df = df,
+            author_col = 'Brand',
+            content_col = 'Content'
+        )
+        
+        df = select_columns(
+            df = df,
+            selected_cols = ['Content','Label']
+        )
+        
     
     # Balance Classes
     label_dist = df[label_col].value_counts()
