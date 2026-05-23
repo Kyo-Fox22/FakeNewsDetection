@@ -1,6 +1,7 @@
 import pandas as pd
 import sentencepiece as spm
 import os
+from sklearn.model_selection import train_test_split
 
 def balance_binary_classes(majority: pd.DataFrame, minority: pd.DataFrame, upsample: bool = True,
                     shuffle: bool = True, random_state: int | None = None) -> pd.DataFrame:
@@ -14,7 +15,7 @@ def balance_binary_classes(majority: pd.DataFrame, minority: pd.DataFrame, upsam
         random_state (int | None, optional): Defines the seed used for sampling. Defaults to None.
 
     Returns:
-        pd.DataFrame: dataframe with balanced classes.
+        pd.DataFrame: Dataframe with balanced classes.
     """
     if upsample:
         balanced = pd.concat([
@@ -54,7 +55,7 @@ def encode_label_texts(df: pd.DataFrame, label_column: str, mapping_dict: dict) 
     Returns:
         pd.DataFrame: Dataframe with labels encoded according to mapping dictionary.
     """
-    df[label_column] = df[label_column].apply(mapping_dict)
+    df[label_column] = df[label_column].map(mapping_dict)
     return df
 
 def train_tokenizer(doc: str, model_dir: str = '..\\models\\bpe', model_prefix: str = 'spm', 
@@ -78,43 +79,21 @@ def train_tokenizer(doc: str, model_dir: str = '..\\models\\bpe', model_prefix: 
     )
     return
 
-def encode_feature_texts(df: pd.DataFrame, feature_col: str, model_path: str | None = None,
-                         dataset_dir: str = '..\\datasets', model_dir: str = '..\\models\\bpe', 
-                         model_prefix: str = 'spm', vocab_size: int | None = None, 
-                         model_type: str = 'bpe', pad_id: int = 3) -> pd.DataFrame:
+def encode_feature_texts(df: pd.DataFrame, feature_col: str, model_dir: str = '..\\models\\bpe', 
+                         model_prefix: str = 'spm',) -> pd.DataFrame:
     """Encode a feature column within a dataframe using an existing spm model. 
     If no spm model path is provided, an spm model is trained by default.
 
     Args:
         df (pd.DataFrame): Dataframe that contains the feature column to be encoded.
         feature_col (str): Name of the feature column within the dataframe.
-        model_path (str | None, optional): Path to the trained spm model tokenizer. If None, trains an spm model tokenizer. Defaults to None.
-        dataset_dir (str, optional): Directory to store the corpus if an spm model is trained. Defaults to '..\\datasets'.
         model_dir (str, optional): Directory to save the model if an spm model is trained. Defaults to '..\\models\\bpe'.
         model_prefix (str, optional): Prefix to use as a name to store the model when it is trained. Defaults to 'spm'.
-        vocab_size (int | None, optional): Allowed vocabulary size for the model to use if it is trained. Defaults to None.
-        model_type (str, optional): Type of tokenizer the model uses when it is trained. Defaults to 'bpe'.
-        pad_id (int, optional): Pad Id used by the tokenizer when a model is trained. Defaults to 3.
 
     Returns:
         pd.DataFrame: Dataframe with encoded feature column using an spm model.
     """
-    if model_path is None:
-        corpus_path = os.path.join(dataset_dir, 'corpus.txt')
-        with open(corpus_path, 'w', encoding = 'utf-8') as file:
-            for row in df[feature_col]:
-                file.write(row + '\n')
-        
-        train_tokenizer(
-            doc = corpus_path,
-            model_dir = model_dir,
-            model_prefix = model_prefix,
-            vocab_size = vocab_size,
-            model_type = model_type,
-            pad_id = pad_id
-        )
-        
-        model_path = os.path.join(model_dir, model_prefix + '.model')
+    model_path = os.path.join(model_dir, model_prefix + '.model')
         
     tokenizer = spm.SentencePieceProcessor()
     tokenizer.load(model_path)
@@ -122,3 +101,88 @@ def encode_feature_texts(df: pd.DataFrame, feature_col: str, model_path: str | N
     df[feature_col] = df[feature_col].apply(tokenizer.encode)
     
     return df
+
+def process_data(df: pd.DataFrame, feature_col: str, label_col: str, **kwargs) -> pd.DataFrame:
+    """Process a classification dataset containing binary classes along with string features and labels
+    using a sentencepiece model tokenizer.
+
+    Args:
+        df (pd.DataFrame): Dataframe of the dataset that will be processed.
+        feature_col (str): Name of the feature column to be processed inside the df DataFrame.
+        label_col (str): Name of the label column to be processed inside the df DataFrame.
+
+    Returns:
+        pd.DataFrame: Processed dataset with feature and label encoded in numerical representations.
+    """
+    
+    # Kwargs
+    corpus_path = os.path.join(kwargs.get('dataset_dir','..//datasets'), 'corpus.txt')
+    tokenizer_dir = kwargs.get('tokenizer_dir', os.path.join('..','models','bpe'))
+    model_prefix = kwargs.get('model_prefix', 'spm')
+    vocab_size = kwargs.get('vocab_size', 8000)
+    model_type = kwargs.get('model_type', 'bpe')
+    pad_id = kwargs.get('pad_id', 3)
+    
+    # Balance Classes
+    label_dist = df[label_col].value_counts()
+    majority = df[df[label_col] == label_dist.index[label_dist.argmax()]]
+    minority = df[df[label_col] == label_dist.index[label_dist.argmin()]]
+    
+    is_imbalanced = len(minority)/len(df) < 0.4
+    
+    if is_imbalanced:
+        balanced_df = balance_binary_classes(
+            majority = majority,
+            minority = minority,
+            upsample = kwargs.get('upsample',True),
+            shuffle = kwargs.get('shuffle', True),
+            random_state = kwargs.get('random_state')
+        )
+              
+    # Encode
+    encoded_df = encode_label_texts(
+        df = balanced_df, 
+        label_column = label_col, 
+        mapping_dict = kwargs.get(
+            'mapping_dict',
+            {'Credible':0, 'Not Credible': 1}
+        )
+    )
+    
+    train, test = train_test_split(
+        encoded_df, 
+        test_size = kwargs.get('test_size', 0.2),
+        random_state = kwargs.get('random_state')
+    )
+    
+    if not os.path.isfile(corpus_path):
+        with open(corpus_path, 'w', encoding = 'utf-8') as file:
+            for row in train[feature_col]:
+                file.write(row + '\n')
+    
+    
+    if not os.path.isfile(os.path.join(tokenizer_dir, model_prefix + '.model')):
+        train_tokenizer(
+            doc = corpus_path,
+            model_dir = tokenizer_dir,
+            model_prefix = model_prefix,
+            vocab_size = vocab_size,
+            model_type = model_type,
+            pad_id = pad_id
+        )
+    
+    train = encode_feature_texts(
+        df = train,
+        feature_col = feature_col,
+        model_dir = tokenizer_dir,
+        model_prefix = model_prefix,
+    )
+    
+    test = encode_feature_texts(
+        df = test,
+        feature_col = feature_col,
+        model_dir = tokenizer_dir,
+        model_prefix = model_prefix
+    )
+    
+    return train, test
