@@ -225,13 +225,13 @@ def process_data(df: pd.DataFrame, feature_col: str, label_col: str, **kwargs) -
         feature_col = feature_col,
         model_dir = tokenizer_dir,
         model_prefix = model_prefix,
-    )
+    ).reset_index(drop=True)
     
     test = encode_feature_texts(
         df = test,
         feature_col = feature_col,
         model_dir = tokenizer_dir,
         model_prefix = model_prefix
-    )
+    ).reset_index(drop=True)
     
     return train, test
