@@ -8,10 +8,6 @@ from torch.nn.utils.rnn import pad_sequence
 import mlflow
 import json
 
-sys.path.append(os.path.abspath(os.pardir))
-
-from src.data_processing import *
-
 # Classes
 class FakeNewsDataset(Dataset):
     def __init__(self, feature, label):
@@ -174,7 +170,7 @@ def load_latest_model(model: FakeNewsDetector, model_dir: str,
     # Get all recent finished runs
     all_runs = mlflow.search_runs(
         filter_string = "status = 'FINISHED'",
-        order_by = ['end_time DESC', 'metrics.Loss ASC'],
+        order_by = ['end_time DESC', 'metrics.test_loss ASC', 'metrics.train_loss ASC'],
         search_all_experiments = True
     )
     
