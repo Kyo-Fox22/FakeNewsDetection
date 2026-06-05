@@ -137,13 +137,14 @@ def encode_feature_texts(df: pd.DataFrame, feature_col: str, model_dir: str = '.
 
 def process_data(df: pd.DataFrame, feature_col: str, label_col: str, **kwargs) -> pd.DataFrame:
     """Process a classification dataset containing binary classes along with string features and labels
-    using a sentencepiece model tokenizer.
+    using a sentencepiece model tokenizer. Keyword arguments can be provided for specific functions such as
+    the name of the dataset for dataset-specific actions or corpus path. See other functions for kwargs.
 
     Args:
         df (pd.DataFrame): Dataframe of the dataset that will be processed.
         feature_col (str): Name of the feature column to be processed inside the df DataFrame.
         label_col (str): Name of the label column to be processed inside the df DataFrame.
-
+        
     Returns:
         pd.DataFrame: Processed dataset with feature and label encoded in numerical representations.
     """
