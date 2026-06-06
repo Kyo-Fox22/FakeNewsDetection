@@ -16,7 +16,6 @@ parser.add_argument('-cd', '--conv_dim', type = int, default = 4, help = 'Number
 parser.add_argument('-k', '--kernel_size', type = int, default = 5, help = 'Kernel size of the Convolutional and Pooling Layers')
 parser.add_argument('-vc', '--vocab_size', type = int, default = 8000, help = 'Size of the vocabulary the model is trained on')
 parser.add_argument('-pid', '--pad_id', type = int, default = 3, help = 'Integer used to register as the padding token')
-parser.add_argument('-eid', '--eos_id', type = int, default = 2, help = 'Integer used to register as the end-of-sequence token')
 parser.add_argument('-b', '--batch_size', type = int, default = 32, help = 'Size of the batches for the dataloader the model uses')
 parser.add_argument('-v', '--verbose', type = bool, default = True, help = 'Whether or not the program should output progress reports')
 
