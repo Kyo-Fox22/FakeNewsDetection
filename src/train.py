@@ -1,14 +1,14 @@
-import pandas as pd
-import argparse
 import os
 import sys
-
 sys.path.append(os.path.abspath(os.pardir))
 
+import pandas as pd
+import mlflow
+import argparse
 from src import data_processing
 from src import model_building
 
-# Setup Argument Parser for command-line interface
+# Setup Argument Parser for command line interface
 parser = argparse.ArgumentParser(description = 'Train a Filipino Fake News Detector')
 parser.add_argument('-e', '--epochs', type = int, help = 'Number of times the model sees the whole dataset in training')
 parser.add_argument('-ed', '--embed_dim', type = int, default = 5, help = 'Number of embedding dimensions for the model')
@@ -18,4 +18,132 @@ parser.add_argument('-vc', '--vocab_size', type = int, default = 8000, help = 'S
 parser.add_argument('-pid', '--pad_id', type = int, default = 3, help = 'Integer used to register as the padding token')
 parser.add_argument('-b', '--batch_size', type = int, default = 32, help = 'Size of the batches for the dataloader the model uses')
 parser.add_argument('-v', '--verbose', type = bool, default = True, help = 'Whether or not the program should output progress reports')
+parser.add_argument('-rs', '--random_state', type = int, default = 42, help = 'Seed used for the psuedo-random functions in the program')
 
+
+args = parser.parse_args()
+
+# Prepare Datasets and max_seq
+if args.verbose:
+    print('Preparing dataset...')    
+dataset_dir = os.path.join('..','datasets')
+
+csv_datasets = os.listdir(dataset_dir)
+csv_datasets.remove('corpus.txt')
+
+dataset_paths = [(csv, os.path.join(dataset_dir, csv)) for csv in csv_datasets]
+
+train, test = None, None
+
+for df_name, dataset_path in dataset_paths:
+    df = pd.read_csv(dataset_path)
+    
+    if train is None and test is None:
+        train, test = data_processing.process_data(
+            df = df,
+            feature_col = 'Content',
+            label_col = 'Label',
+            random_state = args.random_state,
+            df_name = df_name,
+            vocab_size = args.vocab_size
+        )
+    else:
+        train_subset, test_subset = data_processing.process_data(
+            df = df,
+            feature_col = 'Content',
+            label_col = 'Label',
+            random_state = args.random_state,
+            df_name = df_name,
+            vocab_size = args.vocab_size
+        )
+        
+        train = pd.concat([
+            train,
+            train_subset
+        ])
+        
+        test = pd.concat([
+            test,
+            test_subset
+        ])
+
+if args.verbose:
+    print('Train and Test Set Loaded.')
+
+# Get max seq for model config
+max_seq = max(pd.concat([
+    train['Content'],
+    test['Content']
+]).apply(len))
+
+
+# Build the Model
+config = {
+    'vocab_size': args.vocab_size,
+    'embed_dim': args.embed_dim,
+    'pad_id': args.pad_id,
+    'conv_dim': args.conv_dim,
+    'kernel_size': args.kernel_size,
+    'max_seq': max_seq,
+}
+
+model = model_building.FakeNewsDetector(**config)
+
+# Check if the model has the same params as recently trained models, then increment model_version if true
+model_dir = os.path.join('..','models','FakeNewsDetector')
+os.listdir(model_dir)
+
+model_building.get_experiment(
+    exp_name = 'FakeNewsDetector',
+    uri_path = os.path.join(model_dir, 'mlflow.db')
+)
+
+recent_runs = mlflow.search_runs(
+    filter_string = "status = 'FINISHED'",
+    order_by = ['end_time DESC', 'metrics.test_loss ASC', 'metrics.train_loss ASC'],
+    search_all_experiments = True
+)
+
+latest_run = recent_runs.loc[0, :]
+
+expected_params = {
+    'vocab_size': int(latest_run['params.vocab_size']),
+    'embed_dim': int(latest_run['params.embed_dim']),
+    'pad_id': int(latest_run['params.pad_id']),
+    'conv_dim': int(latest_run['params.conv_dim']),
+    'kernel_size': int(latest_run['params.kernel_size']),
+    'max_seq': int(latest_run['params.max_seq'])
+}
+
+
+param_mismatch = 0
+for k,v in config.items():    
+    if not v == expected_params[k]:
+        param_mismatch += 1
+        
+if args.verbose:
+    print(f'{param_mismatch} Parameter Mismatch Detected.')
+        
+# Increment model_version if parameters don't match to last trained model
+model_version = float(latest_run['tags.version'])
+
+if param_mismatch:
+    # Increment depend on whether there are massive changes or minor
+    model_version += 0.1 if param_mismatch < 6 else 1.0
+
+if args.verbose:
+    print(f'Model Version set to {model_version}.')
+
+# Train the Model
+model_building.train_model(
+    model = model,
+    model_config = config,
+    epochs = args.epochs,
+    datasets = (train, test),
+    batch_size = args.batch_size,
+    verbose = args.verbose,
+    model_version = model_version
+)
+
+if args.verbose:
+    print('Model Training Finished.')
