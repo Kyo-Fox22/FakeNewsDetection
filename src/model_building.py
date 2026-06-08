@@ -157,34 +157,44 @@ def get_experiment(exp_name: str, uri_path: str, artifact_location: str = None) 
     
     return experiment
 
-def load_latest_model(model: FakeNewsDetector, model_dir: str, 
-                      return_runs: bool = False) -> pd.DataFrame:
+def load_latest_model(model_dir: str, return_runs: bool = False) -> tuple[FakeNewsDetector, pd.DataFrame]:
     """Load the latest FakeNewsDetector model that was tracked by an mlflow experiment.
 
     Args:
-        model (FakeNewsDetector): A FakeNewsDetector model that would be used to load the latest model.
         model_dir (str): The directory path to where the models are saved.
         return_runs (bool): Whether to return the records of finished runs. Defaults to False.
+
+    Returns:
+        tuple[FakeNewsDetector, dict, pd.DataFrame]: latest trained model along with its parameter configuration
+        and all recent runs dataframe if return_runs is set to True.
     """
     
     # Get all recent finished runs
     all_runs = mlflow.search_runs(
         filter_string = "status = 'FINISHED'",
-        order_by = ['end_time DESC', 'metrics.test_loss ASC', 'metrics.train_loss ASC'],
+        order_by = ['end_time DESC', 'metrics.Loss ASC'],
         search_all_experiments = True
     )
     
     # Get latest run id
     latest_run_id = all_runs.run_id[0]
     
-    # Load latest model artifacts
+    # Get latest model artifacts
     latest_artifact_dir = os.path.join(model_dir, latest_run_id, 'artifacts')
     
+    # Get config
+    with open(os.path.join(latest_artifact_dir, 'config.json')) as f:
+        config = json.load(f)
+    
+    # Load model
+    model = FakeNewsDetector(**config)
+    
+    # Load weights
     model.load_state_dict(torch.load(
         os.path.join(latest_artifact_dir, 'weights.pt')
     ))
     
-    return all_runs if return_runs else None
+    return (model, config, all_runs) if return_runs else (model, config)
 
 def train_model(model: FakeNewsDetector, model_config: dict, epochs: int, 
                 datasets: tuple[pd.DataFrame, pd.DataFrame], model_version: float = None,
@@ -193,13 +203,6 @@ def train_model(model: FakeNewsDetector, model_config: dict, epochs: int,
     # Experiment Kwargs
     exp_name = kwargs.get('exp_name', 'FakeNewsDetector')
     model_dir = os.path.join('..','models',exp_name)
-    
-    uri_path = kwargs.get(
-        'uri_path', 
-        os.path.join(model_dir, 'mlflow.db')
-    )
-    
-    artifact_location = kwargs.get('artifact_location', model_dir)
     
     if verbose:
         print('Experiment Kwargs Loaded.')
@@ -214,13 +217,6 @@ def train_model(model: FakeNewsDetector, model_config: dict, epochs: int,
     
     if verbose:
         print('DataLoader Kwargs Loaded.')
-        
-    # Set Experiment
-    experiment = get_experiment(exp_name, uri_path, artifact_location)
-    experiment = mlflow.set_experiment(experiment_id = experiment.experiment_id)
-    
-    if verbose:
-        print(f'Experiment set to {experiment.experiment_id}.')
         
     # Process DataLoaders
     trainloader, testloader = create_dataloaders(
@@ -238,10 +234,10 @@ def train_model(model: FakeNewsDetector, model_config: dict, epochs: int,
         print('DataLoaders generated.')
         
     # Load Latest Model
-    all_runs = load_latest_model(model, model_dir, return_runs = True)
+    all_runs = load_latest_model(model_dir, return_runs = True)[-1]
     
     if verbose:
-        print('Latest Model Loaded.')
+        print('Latest Model Runs Loaded.')
         
     # Model Optimizer, Loss, and Version
     if optim is None:
