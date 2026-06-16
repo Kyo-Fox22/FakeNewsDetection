@@ -28,7 +28,7 @@ class MainWindow(QMainWindow):
         self.contentbox.setFixedSize(250,200)
         
         self.predictbutton = QPushButton('Make Prediction')
-        self.predictbutton.clicked.connect(self.placeholder_func)
+        self.predictbutton.clicked.connect(self.predict)
         self.predictionbox = QLabel('<h4>Output:</h4>No prediction yet.')
         # If fake: The given news is likely fake news.
         # If not fake: The given news is likely authentic news.
@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(window)
         self.setFixedSize(270,380)
         
-    def placeholder_func(self):
+    def predict(self):
         author = self.authbox.text()
         content = self.contentbox.toPlainText()
         
