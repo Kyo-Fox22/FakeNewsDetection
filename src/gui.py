@@ -50,21 +50,32 @@ class MainWindow(QMainWindow):
         author = self.authbox.text()
         content = self.contentbox.toPlainText()
         
-        is_fake = model_predict(
-            inputs = {'author': author, 'content': content},
-            model = self.model,
-            max_seq = self.model_config['max_seq']
-        )
+        content_threshold = 100
         
-        print(author[:10], content[:10], is_fake)
-        
-        if is_fake:
-            self.predictionbox.setText('<h4>Output:</h4>The given news is likely fake news.')
-        elif not is_fake:
-            self.predictionbox.setText('<h4>Output:</h4>The given news is likely authentic news.')
-        else:
+        try:
+            if content == '':
+                self.predictionbox.setText('<h4>Output:</h4>No given content detected.')
+            elif len(content) <= content_threshold:
+                self.predictionbox.setText('<h4>Output:</h4>Given content too short.')
+            
+            if content != '' and len(content) > content_threshold:
+                is_fake = model_predict(
+                    inputs = {
+                        'author': author if author != '' else 'Unknown', 
+                        'content': content
+                        },
+                    model = self.model,
+                    max_seq = self.model_config['max_seq']
+                )
+                
+                if is_fake:
+                    self.predictionbox.setText('<h4>Output:</h4>The given news is likely fake news.')
+                else:
+                    self.predictionbox.setText('<h4>Output:</h4>The given news is likely authentic news.')
+                
+        except:
             self.predictionbox.setText('<h4>Output:</h4>An unexpected error occurred.')
-        
+         
         return
     
 
