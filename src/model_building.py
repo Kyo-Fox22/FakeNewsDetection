@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
 import mlflow
 import json
+import sentencepiece as spm
 
 # Classes
 class FakeNewsDataset(Dataset):
@@ -317,3 +318,56 @@ def train_model(model: FakeNewsDetector, model_config: dict, epochs: int,
         mlflow.set_tag('version', model_version)
     
     return
+
+def get_tokenizer(tokenizer_dir: str) -> spm.SentencePieceProcessor:
+    """Load an spm tokenizer used for the model's training and predictions.
+
+    Args:
+        tokenizer_dir (str): Relative or Absolute path to the tokenizer model directory.
+
+    Returns:
+        spm.SentencePieceProcessor: latest trained model of the tokenizer.
+    """
+    tokenizer = spm.SentencePieceProcessor()
+    tokenizer.load(os.path.join(tokenizer_dir, 'spm.model'))
+    
+    return tokenizer
+
+def model_predict(inputs: dict, model: FakeNewsDetector, max_seq: int, **kwargs) -> torch.Tensor:
+    """Use a model to predict the probability that a given Philippine author and news content is likely to be fake.
+
+    Args:
+        inputs (dict): A dictionary containing an 'author' and 'content'.
+        model (FakeNewsDetector): A trained FakeNewsDetector model that is used for the raw logits prediction.
+        max_seq (int): Max sequence length to pad the content.
+
+    Returns:
+        torch.Tensor: Tensor that contains the prediction value for the given author and content inputs.
+    """
+    tokenizer_dir = os.path.join('..','models','bpe')
+    
+    # Get Model Configs
+    pad_id = model.embed.padding_idx
+    
+    # Get tokenizer
+    tokenizer = get_tokenizer(tokenizer_dir)
+    
+    # Format
+    formatted = f'{inputs.get('author','Unknown')}: {inputs.get('content')}'
+    encoded = torch.tensor([1] + tokenizer.encode(formatted))
+    batched = encoded.unsqueeze(0)
+    
+    # Pad 
+    pad_tensor = torch.tensor([pad_id for i in range(max_seq - batched.size(1))])
+    pad_tensor = pad_tensor.unsqueeze(0)
+    padded = torch.concat([
+        batched,
+        pad_tensor
+    ], dim = -1)
+    
+    # Prediction
+    with torch.inference_mode():
+        logits = model(padded)
+        prediction = 1 if logits.item() > 0 else 0
+    
+    return prediction
