@@ -333,7 +333,7 @@ def get_tokenizer(tokenizer_dir: str) -> spm.SentencePieceProcessor:
     
     return tokenizer
 
-def model_predict(inputs: dict, model: FakeNewsDetector, max_seq: int, **kwargs) -> torch.Tensor:
+def model_predict(inputs: dict, model: FakeNewsDetector, max_seq: int, **kwargs) -> int:
     """Use a model to predict the probability that a given Philippine author and news content is likely to be fake.
 
     Args:
@@ -342,7 +342,7 @@ def model_predict(inputs: dict, model: FakeNewsDetector, max_seq: int, **kwargs)
         max_seq (int): Max sequence length to pad the content.
 
     Returns:
-        torch.Tensor: Tensor that contains the prediction value for the given author and content inputs.
+        int: Integer 1 or 0 to predict whether the given set of author and content is fake (1) or authentic (0).
     """
     tokenizer_dir = os.path.join('..','models','bpe')
     

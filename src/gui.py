@@ -1,9 +1,18 @@
 from PyQt6.QtWidgets import (QApplication,  QMainWindow, QWidget, QLabel, 
                              QLineEdit, QTextEdit, QPushButton, QVBoxLayout)
 
+import os
+import mlflow
+from model_building import get_experiment, load_latest_model, model_predict, FakeNewsDetector
+
+# Prepare GUI
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, model: FakeNewsDetector, config: dict):
         super().__init__()
+        
+        # For Prediction
+        self.model = model
+        self.model_config = config
         
         self.setWindowTitle('Detect Fake News')
             
@@ -40,13 +49,36 @@ class MainWindow(QMainWindow):
     def placeholder_func(self):
         author = self.authbox.text()
         content = self.contentbox.toPlainText()
-        print(f'{author}: {content}')
+        
+        is_fake = model_predict(
+            inputs = {'author': author, 'content': content},
+            model = self.model,
+            max_seq = self.model_config['max_seq']
+        )
+        
+        print(author[:10], content[:10], is_fake)
+        
+        if is_fake:
+            self.predictionbox.setText('<h4>Output:</h4>The given news is likely fake news.')
+        elif not is_fake:
+            self.predictionbox.setText('<h4>Output:</h4>The given news is likely authentic news.')
+        else:
+            self.predictionbox.setText('<h4>Output:</h4>An unexpected error occurred.')
+        
         return
     
-        
+
+model_dir = os.path.join('..','models','FakeNewsDetector')
+
+# Set experiment
+experiment = get_experiment('FakeNewsDetector', os.path.join(model_dir, 'mlflow.db'))
+mlflow.set_experiment(experiment_id = experiment.experiment_id)
+
+model, config = load_latest_model(model_dir)
+
 app = QApplication([])
 
-window = MainWindow()
+window = MainWindow(model, config)
 window.show()
 
 app.exec()
