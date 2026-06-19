@@ -1,18 +1,17 @@
-from PyQt6.QtWidgets import (QApplication,  QMainWindow, QWidget, QLabel, 
-                             QLineEdit, QTextEdit, QPushButton, QVBoxLayout)
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QLabel, QLineEdit, 
+                             QTextEdit, QPushButton, QVBoxLayout)
 
-import os
-import mlflow
-from model_building import get_experiment, load_latest_model, model_predict, FakeNewsDetector
+from src.model_building import model_predict, FakeNewsDetector
 
 # Prepare GUI
 class MainWindow(QMainWindow):
-    def __init__(self, model: FakeNewsDetector, config: dict):
+    def __init__(self, model: FakeNewsDetector, config: dict, tokenizer_dir):
         super().__init__()
         
-        # For Prediction
+        # Model Details
         self.model = model
         self.model_config = config
+        self.tokenizer_dir = tokenizer_dir
         
         self.setWindowTitle('Detect Fake News')
             
@@ -58,6 +57,7 @@ class MainWindow(QMainWindow):
             elif len(content) <= content_threshold:
                 self.predictionbox.setText('<h4>Output:</h4>Given content too short.')
             
+                       
             if content != '' and len(content) > content_threshold:
                 is_fake = model_predict(
                     inputs = {
@@ -65,7 +65,8 @@ class MainWindow(QMainWindow):
                         'content': content
                         },
                     model = self.model,
-                    max_seq = self.model_config['max_seq']
+                    max_seq = self.model_config['max_seq'],
+                    tokenizer_dir = self.tokenizer_dir
                 )
                 
                 if is_fake:
@@ -73,23 +74,8 @@ class MainWindow(QMainWindow):
                 else:
                     self.predictionbox.setText('<h4>Output:</h4>The given news is likely authentic news.')
                 
-        except:
+        except Exception as e:
             self.predictionbox.setText('<h4>Output:</h4>An unexpected error occurred.')
+            print(f'ERROR: {e}')
          
         return
-    
-
-model_dir = os.path.join('..','models','FakeNewsDetector')
-
-# Set experiment
-experiment = get_experiment('FakeNewsDetector', os.path.join(model_dir, 'mlflow.db'))
-mlflow.set_experiment(experiment_id = experiment.experiment_id)
-
-model, config = load_latest_model(model_dir)
-
-app = QApplication([])
-
-window = MainWindow(model, config)
-window.show()
-
-app.exec()

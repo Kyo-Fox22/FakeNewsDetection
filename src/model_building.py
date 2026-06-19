@@ -202,7 +202,7 @@ def train_model(model: FakeNewsDetector, model_config: dict, epochs: int,
                 verbose: bool = False, **kwargs) -> None:
     # Experiment Kwargs
     exp_name = kwargs.get('exp_name', 'FakeNewsDetector')
-    model_dir = os.path.join('..','models',exp_name)
+    model_dir = os.path.join('models',exp_name)
     
     if verbose:
         print('Experiment Kwargs Loaded.')
@@ -344,9 +344,9 @@ def model_predict(inputs: dict, model: FakeNewsDetector, max_seq: int, **kwargs)
     Returns:
         int: Integer 1 or 0 to predict whether the given set of author and content is fake (1) or authentic (0).
     """
-    tokenizer_dir = os.path.join('..','models','bpe')
     
     # Get Model Configs
+    tokenizer_dir = kwargs.get('tokenizer_dir',os.path.join('..','models','bpe'))
     pad_id = model.embed.padding_idx
     
     # Get tokenizer
