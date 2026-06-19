@@ -173,7 +173,7 @@ def load_latest_model(model_dir: str, return_runs: bool = False) -> tuple[FakeNe
     # Get all recent finished runs
     all_runs = mlflow.search_runs(
         filter_string = "status = 'FINISHED'",
-        order_by = ['end_time DESC', 'metrics.Loss ASC']
+        order_by = ['end_time DESC', 'metrics.test_loss ASC', 'metrics.train_loss ASC']
     )
     
     # Get latest run id

@@ -157,6 +157,14 @@ def process_data(df: pd.DataFrame, feature_col: str, label_col: str, **kwargs) -
     vocab_size = kwargs.get('vocab_size', 8000)
     model_type = kwargs.get('model_type', 'bpe')
     pad_id = kwargs.get('pad_id', 3)
+    upsample = kwargs.get('upsample',True)
+    shuffle = kwargs.get('shuffle', True)
+    random_state = kwargs.get('random_state')
+    mapping_dict = kwargs.get(
+            'mapping_dict',
+            {'Credible':0, 'Not Credible': 1}
+        )
+    test_size = kwargs.get('test_size', 0.2)
     
     # Specific Dataset Processes
     # Combine Author and Content
@@ -184,25 +192,22 @@ def process_data(df: pd.DataFrame, feature_col: str, label_col: str, **kwargs) -
         balanced_df = balance_binary_classes(
             majority = majority,
             minority = minority,
-            upsample = kwargs.get('upsample',True),
-            shuffle = kwargs.get('shuffle', True),
-            random_state = kwargs.get('random_state')
+            upsample = upsample,
+            shuffle = shuffle,
+            random_state = random_state
         )
               
     # Encode
     encoded_df = encode_label_texts(
         df = balanced_df, 
         label_column = label_col, 
-        mapping_dict = kwargs.get(
-            'mapping_dict',
-            {'Credible':0, 'Not Credible': 1}
-        )
+        mapping_dict = mapping_dict
     )
     
     train, test = train_test_split(
         encoded_df, 
-        test_size = kwargs.get('test_size', 0.2),
-        random_state = kwargs.get('random_state')
+        test_size = test_size,
+        random_state = random_state
     )
     
     if not os.path.isfile(corpus_path):

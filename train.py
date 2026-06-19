@@ -1,7 +1,4 @@
 import os
-import sys
-sys.path.append(os.path.abspath(os.pardir))
-
 import pandas as pd
 import mlflow
 import argparse
@@ -26,7 +23,7 @@ args = parser.parse_args()
 # Prepare Datasets and max_seq
 if args.verbose:
     print('Preparing dataset...')    
-dataset_dir = os.path.join('..','datasets')
+dataset_dir = os.path.join('datasets')
 
 csv_datasets = os.listdir(dataset_dir)
 csv_datasets.remove('corpus.txt')
@@ -34,6 +31,9 @@ csv_datasets.remove('corpus.txt')
 dataset_paths = [(csv, os.path.join(dataset_dir, csv)) for csv in csv_datasets]
 
 train, test = None, None
+
+model_dir = os.path.join('models','FakeNewsDetector')
+tokenizer_dir = os.path.join('models','bpe')
 
 for df_name, dataset_path in dataset_paths:
     df = pd.read_csv(dataset_path)
@@ -43,6 +43,8 @@ for df_name, dataset_path in dataset_paths:
             df = df,
             feature_col = 'Content',
             label_col = 'Label',
+            dataset_dir = dataset_dir,
+            tokenizer_dir = tokenizer_dir,
             random_state = args.random_state,
             df_name = df_name,
             vocab_size = args.vocab_size
@@ -90,18 +92,18 @@ config = {
 model = model_building.FakeNewsDetector(**config)
 
 # Check if the model has the same params as recently trained models, then increment model_version if true
-model_dir = os.path.join('..','models','FakeNewsDetector')
+model_dir = os.path.join('models','FakeNewsDetector')
 os.listdir(model_dir)
 
-model_building.get_experiment(
+experiment = model_building.get_experiment(
     exp_name = 'FakeNewsDetector',
     uri_path = os.path.join(model_dir, 'mlflow.db')
 )
+mlflow.set_experiment(experiment_id = experiment.experiment_id)
 
 recent_runs = mlflow.search_runs(
     filter_string = "status = 'FINISHED'",
-    order_by = ['end_time DESC', 'metrics.test_loss ASC', 'metrics.train_loss ASC'],
-    search_all_experiments = True
+    order_by = ['end_time DESC', 'metrics.test_loss ASC', 'metrics.train_loss ASC']
 )
 
 latest_run = recent_runs.loc[0, :]
