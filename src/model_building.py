@@ -158,6 +158,31 @@ def get_experiment(exp_name: str, uri_path: str, artifact_location: str = None) 
     
     return experiment
 
+def load_model_weights(artifacts_dir: str, return_config: bool = False) -> tuple[FakeNewsDetector, dict]:
+    """Load existing model weights through saved artifacts.
+
+    Args:
+        artifacts_dir (str): Path to model artifacts that will be loaded to model.
+        return_config (bool, optional): Whether or not to return the model config retrieved from artifact directory. Defaults to False.
+
+    Returns:
+        tuple[FakeNewsDetector, dict]: an instance of FakeNewsDetector class that's been loaded with existing model weights. 
+        If return_config is True, this also returns a config.
+    """
+    # Get config
+    with open(os.path.join(artifacts_dir, 'config.json')) as f:
+        config = json.load(f)
+    
+    # Load model
+    model = FakeNewsDetector(**config)
+    
+    # Load weights
+    model.load_state_dict(torch.load(
+        os.path.join(artifacts_dir, 'weights.pt')
+    ))
+    
+    return (model, config) if return_config else model
+
 def load_latest_model(model_dir: str, return_runs: bool = False) -> tuple[FakeNewsDetector, pd.DataFrame]:
     """Load the latest FakeNewsDetector model that was tracked by an mlflow experiment.
 
@@ -182,31 +207,28 @@ def load_latest_model(model_dir: str, return_runs: bool = False) -> tuple[FakeNe
     # Get latest model artifacts
     latest_artifact_dir = os.path.join(model_dir, latest_run_id, 'artifacts')
     
-    # Get config
-    with open(os.path.join(latest_artifact_dir, 'config.json')) as f:
-        config = json.load(f)
-    
-    # Load model
-    model = FakeNewsDetector(**config)
-    
-    # Load weights
-    model.load_state_dict(torch.load(
-        os.path.join(latest_artifact_dir, 'weights.pt')
-    ))
+    model, config = load_model_weights(latest_artifact_dir, return_config = True)
     
     return (model, config, all_runs) if return_runs else (model, config)
 
 def train_model(model: FakeNewsDetector, model_config: dict, epochs: int, 
-                datasets: tuple[pd.DataFrame, pd.DataFrame], model_version: float = None,
+                datasets: tuple[pd.DataFrame, pd.DataFrame], model_version: float,
                 batch_size: int = 32, lr: float = 0.001, optim = None, loss_func = None, 
                 verbose: bool = False, **kwargs) -> None:
-    # Experiment Kwargs
-    exp_name = kwargs.get('exp_name', 'FakeNewsDetector')
-    model_dir = os.path.join('models',exp_name)
-    
-    if verbose:
-        print('Experiment Kwargs Loaded.')
-    
+    """Train a FakeNewsDetector model under the given parameters.
+
+    Args:
+        model (FakeNewsDetector): The model to use in training. Must be an instance of FakeNewsDetector.
+        model_config (dict): Model Configuration used in the given model.
+        epochs (int): Number of times to train the model.
+        datasets (tuple[pd.DataFrame, pd.DataFrame]): Tuple of Dataframes containing the train and test respectively.
+        model_version (float): Version number to save the model as within the database.
+        batch_size (int, optional): Size of the batches created by the dataloaders in training. Defaults to 32.
+        lr (float, optional): Learning rate used by the optimizers. Defaults to 0.001.
+        optim (_type_, optional): Optimizers used to gradually change model weights. If None, Adam is used. Defaults to None.
+        loss_func (_type_, optional): _description_. Defaults to None.
+        verbose (bool, optional): _description_. Defaults to False.
+    """
     # DataLoader Kwargs
     train, test = datasets[0], datasets[1]
     feature_col = kwargs.get('feature_col', 'Content')
@@ -233,21 +255,12 @@ def train_model(model: FakeNewsDetector, model_config: dict, epochs: int,
     if verbose:
         print('DataLoaders generated.')
         
-    # Load Latest Model
-    all_runs = load_latest_model(model_dir, return_runs = True)[-1]
-    
-    if verbose:
-        print('Latest Model Runs Loaded.')
-        
     # Model Optimizer, Loss, and Version
     if optim is None:
         optim = torch.optim.Adam(model.parameters(), lr)
         
     if loss_func is None:
         loss_func = nn.BCEWithLogitsLoss()
-        
-    if model_version is None:
-        model_version = all_runs['tags.version'][0]
         
     # Main Loop
     if verbose:

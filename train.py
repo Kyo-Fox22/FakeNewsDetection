@@ -135,6 +135,20 @@ if param_mismatch:
 
 if args.verbose:
     print(f'Model Version set to {model_version}.')
+    
+    
+# Check for existing verision runs in database
+existing_version_runs = recent_runs[recent_runs['tags.version'] == f'{model_version}'].sort_values(
+    by = ['end_time', 'metrics.test_loss', 'metrics.train_loss'], 
+    ascending = [False, True, True]
+)
+
+# Load Best Recently Trained Model if an existing model version was trained before
+if len(existing_version_runs) > 0:
+    model_run_id = existing_version_runs.loc[0, 'run_id']
+    artifacts_dir = os.path.join(model_dir, model_run_id, 'artifacts')
+    
+    model = model_building.load_model_weights(artifacts_dir)
 
 # Train the Model
 model_building.train_model(
