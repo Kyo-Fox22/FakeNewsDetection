@@ -145,6 +145,9 @@ existing_version_runs = recent_runs[recent_runs['tags.version'] == f'{model_vers
 
 # Load Best Recently Trained Model if an existing model version was trained before
 if len(existing_version_runs) > 0:
+    if verbose:
+        print(f'Existing Model runs with version {model_version} detected. Loading Best v{model_version} Model.')
+        
     model_run_id = existing_version_runs.loc[0, 'run_id']
     artifacts_dir = os.path.join(model_dir, model_run_id, 'artifacts')
     
