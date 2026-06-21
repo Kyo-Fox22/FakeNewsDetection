@@ -12,6 +12,9 @@ tokenizer_dir = os.path.join('models', 'bpe')
 experiment = get_experiment('FakeNewsDetector', os.path.join(model_dir, 'mlflow.db'))
 mlflow.set_experiment(experiment_id = experiment.experiment_id)
 
+# TODO
+#? Is it possible to add an option to choose a model version for the app to use?
+
 model, config = load_latest_model(model_dir)
 
 app = QApplication([])

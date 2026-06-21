@@ -1,0 +1,8 @@
+{
+  "vocab_size": 8000,
+  "embed_dim": 7,
+  "pad_id": 3,
+  "conv_dim": 5,
+  "kernel_size": 5,
+  "max_seq": 24186
+}

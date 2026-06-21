@@ -136,6 +136,11 @@ if param_mismatch:
 if args.verbose:
     print(f'Model Version set to {model_version}.')
     
+#  TODO ---------------------------------------------------------------------
+#! Version incrementing needs you to find the maximum of the versions
+#? If the version is close to the base version, would you increment it based off that version 
+#? or just increment the max version?
+# ---------------------------------------------------------------------------
     
 # Check for existing verision runs in database
 existing_version_runs = recent_runs[recent_runs['tags.version'] == f'{model_version}'].sort_values(
@@ -152,6 +157,9 @@ if len(existing_version_runs) > 0:
     artifacts_dir = os.path.join(model_dir, model_run_id, 'artifacts')
     
     model = model_building.load_model_weights(artifacts_dir)
+else:
+    if verbose:
+        print(f'No existing model runs with version {model_version} detected.')
 
 # Train the Model
 model_building.train_model(
