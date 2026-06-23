@@ -183,12 +183,17 @@ def load_model_weights(artifacts_dir: str, return_config: bool = False) -> tuple
     
     return (model, config) if return_config else model
 
-def load_latest_model(model_dir: str, return_runs: bool = False) -> tuple[FakeNewsDetector, pd.DataFrame]:
+def load_latest_model(
+    model_dir: str, return_runs: bool = False, model_version: float = None,
+    verbose: bool = True
+    ) -> tuple[FakeNewsDetector, pd.DataFrame]:
     """Load the latest FakeNewsDetector model that was tracked by an mlflow experiment.
 
     Args:
         model_dir (str): The directory path to where the models are saved.
         return_runs (bool): Whether to return the records of finished runs. Defaults to False.
+        model_version (float, optional): If not None, loads the latest existing model for that model version. Defaults to None.
+        verbose (bool, optional): Determines whether or not the function prints outputs. Defaults to True.
 
     Returns:
         tuple[FakeNewsDetector, dict, pd.DataFrame]: latest trained model along with its parameter configuration
@@ -201,13 +206,23 @@ def load_latest_model(model_dir: str, return_runs: bool = False) -> tuple[FakeNe
         order_by = ['end_time DESC', 'metrics.test_loss ASC', 'metrics.train_loss ASC']
     )
     
+    # Get latest run
+    latest_run = all_runs.iloc[0]
+    
+    # If model_version is given, filter for version and get latest run
+    if model_version is not None:
+        latest_run = all_runs[all_runs['tags.version'] == f'{model_version}'].iloc[0]
+    
     # Get latest run id
-    latest_run_id = all_runs.run_id[0]
+    latest_run_id = latest_run.run_id
     
     # Get latest model artifacts
     latest_artifact_dir = os.path.join(model_dir, latest_run_id, 'artifacts')
     
     model, config = load_model_weights(latest_artifact_dir, return_config = True)
+    
+    if verbose:
+        print(f'Model Version {float(latest_run['tags.version'])} loaded.')
     
     return (model, config, all_runs) if return_runs else (model, config)
 

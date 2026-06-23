@@ -18,6 +18,9 @@ parser.add_argument('-v', '--verbose', type = bool, default = True, help = 'Whet
 parser.add_argument('-rs', '--random_state', type = int, default = 42, help = 'Seed used for the psuedo-random functions in the program')
 
 
+# TODO
+#? Should model default to base 1.0 version or the latest previous run?
+
 args = parser.parse_args()
 
 # Prepare Datasets and max_seq
@@ -126,21 +129,25 @@ for k,v in config.items():
 if args.verbose:
     print(f'{param_mismatch} Parameter Mismatch Detected.')
         
-# Increment model_version if parameters don't match to last trained model
+# Get last trained model version
 model_version = float(latest_run['tags.version'])
 
 if param_mismatch:
     # Increment depend on whether there are massive changes or minor
     model_version += 0.1 if param_mismatch < 6 else 1.0
 
+# -------------------------------------------------------------------------------------------
+# TODO
+# Check for existing similar model configurations
+
+
+
+
+
+# -------------------------------------------------------------------------------------------
+
 if args.verbose:
     print(f'Model Version set to {model_version}.')
-    
-#  TODO ---------------------------------------------------------------------
-#! Version incrementing needs you to find the maximum of the versions
-#? If the version is close to the base version, would you increment it based off that version 
-#? or just increment the max version?
-# ---------------------------------------------------------------------------
     
 # Check for existing verision runs in database
 existing_version_runs = recent_runs[recent_runs['tags.version'] == f'{model_version}'].sort_values(
@@ -150,7 +157,7 @@ existing_version_runs = recent_runs[recent_runs['tags.version'] == f'{model_vers
 
 # Load Best Recently Trained Model if an existing model version was trained before
 if len(existing_version_runs) > 0:
-    if verbose:
+    if args.verbose:
         print(f'Existing Model runs with version {model_version} detected. Loading Best v{model_version} Model.')
         
     model_run_id = existing_version_runs.loc[0, 'run_id']
@@ -158,8 +165,9 @@ if len(existing_version_runs) > 0:
     
     model = model_building.load_model_weights(artifacts_dir)
 else:
-    if verbose:
+    if args.verbose:
         print(f'No existing model runs with version {model_version} detected.')
+        
 
 # Train the Model
 model_building.train_model(
