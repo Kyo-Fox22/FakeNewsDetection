@@ -1,5 +1,4 @@
 import pandas as pd
-import sys
 import os
 import torch
 import torch.nn as nn
@@ -225,6 +224,39 @@ def load_latest_model(
         print(f'Model Version {float(latest_run['tags.version'])} loaded.')
     
     return (model, config, all_runs) if return_runs else (model, config)
+
+def get_version(config: dict, verbose: bool = True) -> float | None:
+    """Get a model's version if there is an existing record within the database.
+
+    Args:
+        config (dict): Configurations of the model version to search for in the database.
+        verbose (bool, optional): Determines if the function prints an output to the console.
+
+    Returns:
+        float: Model version with the specified configuration expressed in float datatype. If there are no records, it returns None.
+    """
+    
+    filter_string = ' AND '.join(
+        ["status = 'FINISHED'", "tags.version != 'None'"] +
+        [f"params.{key} = '{val}'" for key, val in config.items()]
+    )
+    
+    if verbose:
+        print('Querying database for matching configurations.')
+    
+    query = mlflow.search_runs(
+        filter_string = filter_string,
+        order_by = ['end_time DESC', 'metrics.train_loss ASC', 'metrics.test_loss ASC']
+    )
+    
+    if len(query) > 0:
+        if verbose: print('Existing record found.')
+        version = float(query['tags.version'].unique().item())
+    else:
+        if verbose: print('No existing record found.')
+        version = None
+    
+    return version
 
 def train_model(model: FakeNewsDetector, model_config: dict, epochs: int, 
                 datasets: tuple[pd.DataFrame, pd.DataFrame], model_version: float,

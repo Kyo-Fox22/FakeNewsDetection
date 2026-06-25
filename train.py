@@ -111,6 +111,10 @@ recent_runs = mlflow.search_runs(
 
 latest_run = recent_runs.loc[0, :]
 
+# -------------------------------------------------------------------------------------------
+# TODO
+# Base expected params on latest model configurations to align with version incrementing
+
 expected_params = {
     'vocab_size': int(latest_run['params.vocab_size']),
     'embed_dim': int(latest_run['params.embed_dim']),
@@ -120,6 +124,7 @@ expected_params = {
     'max_seq': int(latest_run['params.max_seq'])
 }
 
+# -------------------------------------------------------------------------------------------
 
 param_mismatch = 0
 for k,v in config.items():    
@@ -128,23 +133,16 @@ for k,v in config.items():
         
 if args.verbose:
     print(f'{param_mismatch} Parameter Mismatch Detected.')
-        
-# Get last trained model version
-model_version = float(latest_run['tags.version'])
 
-if param_mismatch:
-    # Increment depend on whether there are massive changes or minor
-    model_version += 0.1 if param_mismatch < 6 else 1.0
+model_version = model_building.get_version(config, args.verbose)
 
-# -------------------------------------------------------------------------------------------
-# TODO
-# Check for existing similar model configurations
+if model_version is None:
+    # Get last trained model version
+    model_version = float(latest_run['tags.version'])
 
-
-
-
-
-# -------------------------------------------------------------------------------------------
+    if param_mismatch:
+        # Increment depend on whether there are massive changes or minor
+        model_version += 0.1 if param_mismatch < 6 else 1.0
 
 if args.verbose:
     print(f'Model Version set to {model_version}.')
