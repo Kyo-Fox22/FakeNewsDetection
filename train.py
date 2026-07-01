@@ -103,28 +103,18 @@ experiment = model_building.get_experiment(
     uri_path = os.path.join(model_dir, 'mlflow.db')
 )
 mlflow.set_experiment(experiment_id = experiment.experiment_id)
-
+ 
+# Get finished runs database
 recent_runs = mlflow.search_runs(
     filter_string = "status = 'FINISHED'",
     order_by = ['end_time DESC', 'metrics.test_loss ASC', 'metrics.train_loss ASC']
 )
 
-latest_run = recent_runs.loc[0, :]
+# Get most recent version configuration
+versions = recent_runs['tags.version'].apply(lambda x: float(x) if x is not None else x)
+latest_version = max(versions)
 
-# -------------------------------------------------------------------------------------------
-# TODO
-# Base expected params on latest model configurations to align with version incrementing
-
-expected_params = {
-    'vocab_size': int(latest_run['params.vocab_size']),
-    'embed_dim': int(latest_run['params.embed_dim']),
-    'pad_id': int(latest_run['params.pad_id']),
-    'conv_dim': int(latest_run['params.conv_dim']),
-    'kernel_size': int(latest_run['params.kernel_size']),
-    'max_seq': int(latest_run['params.max_seq'])
-}
-
-# -------------------------------------------------------------------------------------------
+expected_params = model_building.get_config(latest_version)
 
 param_mismatch = 0
 for k,v in config.items():    

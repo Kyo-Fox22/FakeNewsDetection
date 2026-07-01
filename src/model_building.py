@@ -258,6 +258,52 @@ def get_version(config: dict, verbose: bool = True) -> float | None:
     
     return version
 
+def get_config(version: float, verbose: bool = True) -> dict | None:
+    """Get model configuration dictionary of a given version within the database.
+
+    Args:
+        version (float): Target model version to retrieve the config from.
+        verbose (bool, optional): Determines if the function prints an output to the console. Defaults to True.
+
+    Returns:
+        dict | None: A dictionary containing the model configurations. If there is no recorded model in database, returns None.
+    """
+    
+    # Set filter string for database query
+    filter_string = ' AND '.join(
+        ["status = 'FINISHED'", f"tags.version = '{version}'"]
+    )
+    
+    # Check for records of version
+    runs = mlflow.search_runs(
+        filter_string = filter_string,
+        order_by = ['end_time DESC', 'metrics.train_loss ASC', 'metrics.test_loss ASC']
+    )
+    
+    # Default config value if runs does not contain any records
+    config = None
+    
+    if verbose:
+        print(f'Found {len(runs)} {'records' if len(runs) > 1 else 'record'} in database.')
+    
+    if len(runs):        
+        # Get most recent record
+        recent_record = runs.iloc[0, :]
+        
+        config = {
+            'vocab_size': int(recent_record['params.vocab_size']),
+            'embed_dim': int(recent_record['params.embed_dim']),
+            'pad_id': int(recent_record['params.pad_id']),
+            'conv_dim': int(recent_record['params.conv_dim']),
+            'kernel_size': int(recent_record['params.kernel_size']),
+            'max_seq': int(recent_record['params.max_seq'])
+        }
+            
+        if verbose:
+            print(f'Successfully retrieved config from model version {version}')
+    
+    return config
+
 def train_model(model: FakeNewsDetector, model_config: dict, epochs: int, 
                 datasets: tuple[pd.DataFrame, pd.DataFrame], model_version: float,
                 batch_size: int = 32, lr: float = 0.001, optim = None, loss_func = None, 
