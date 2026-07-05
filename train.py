@@ -17,10 +17,6 @@ parser.add_argument('-b', '--batch_size', type = int, default = 32, help = 'Size
 parser.add_argument('-v', '--verbose', type = bool, default = True, help = 'Whether or not the program should output progress reports')
 parser.add_argument('-rs', '--random_state', type = int, default = 42, help = 'Seed used for the psuedo-random functions in the program')
 
-
-# TODO
-#? Should model default to base 1.0 version or the latest previous run?
-
 args = parser.parse_args()
 
 # Prepare Datasets and max_seq
@@ -33,44 +29,47 @@ csv_datasets.remove('corpus.txt')
 
 dataset_paths = [(csv, os.path.join(dataset_dir, csv)) for csv in csv_datasets]
 
-train, test = None, None
-
 model_dir = os.path.join('models','FakeNewsDetector')
 tokenizer_dir = os.path.join('models','bpe')
 
-for df_name, dataset_path in dataset_paths:
-    df = pd.read_csv(dataset_path)
+# -----------------------------------------------------------------------------------------------------
+# Functions for data processing
+# Add or Modify depending on required specific dataset processing for each dataset within the dataset folder
+
+# Philippine Fake News Corpus.csv
+ph_corpus_df = pd.read_csv(os.path.join(dataset_dir, 'Philippine Fake News Corpus.csv'))
+
+def ph_corpus_process(df: pd.DataFrame, feature_col: str, label_col: str) -> pd.DataFrame:
+    df = data_processing.combine_author(
+        df = df,
+        author_col = 'Brand',
+        content_col = feature_col # 'Content'
+    )
+
+    df = data_processing.select_columns(
+        df = df,
+        selected_cols = [feature_col, label_col]
+    )
     
-    if train is None and test is None:
-        train, test = data_processing.process_data(
-            df = df,
-            feature_col = 'Content',
-            label_col = 'Label',
-            dataset_dir = dataset_dir,
-            tokenizer_dir = tokenizer_dir,
-            random_state = args.random_state,
-            df_name = df_name,
-            vocab_size = args.vocab_size
-        )
-    else:
-        train_subset, test_subset = data_processing.process_data(
-            df = df,
-            feature_col = 'Content',
-            label_col = 'Label',
-            random_state = args.random_state,
-            df_name = df_name,
-            vocab_size = args.vocab_size
-        )
-        
-        train = pd.concat([
-            train,
-            train_subset
-        ])
-        
-        test = pd.concat([
-            test,
-            test_subset
-        ])
+    return df
+
+
+# -----------------------------------------------------------------------------------------------------
+
+# Creating dataset-function pairs for processing
+data_funcs = (
+    (ph_corpus_df, ph_corpus_process),
+)
+    
+train, test = data_processing.process_data(
+    data_funcs = data_funcs,
+    feature_col = 'Content',
+    label_col = 'Label',
+    dataset_dir = dataset_dir,
+    tokenizer_dir = tokenizer_dir,
+    random_state = args.random_state,
+    vocab_size = args.vocab_size
+)
 
 if args.verbose:
     print('Train and Test Set Loaded.')
@@ -91,6 +90,13 @@ config = {
     'kernel_size': args.kernel_size,
     'max_seq': max_seq,
 }
+
+# -----------------------------------------------------------------------------------------------
+# TODO
+# Add an argument to let the user choose a version to train, then get the config of that version
+
+
+# -----------------------------------------------------------------------------------------------
 
 model = model_building.FakeNewsDetector(**config)
 
@@ -113,6 +119,9 @@ recent_runs = mlflow.search_runs(
 # Get most recent version configuration
 versions = recent_runs['tags.version'].apply(lambda x: float(x) if x is not None else x)
 latest_version = max(versions)
+
+if args.verbose:
+    print('Getting Latest Version in Database.')
 
 expected_params = model_building.get_config(latest_version)
 

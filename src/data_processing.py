@@ -135,22 +135,20 @@ def encode_feature_texts(df: pd.DataFrame, feature_col: str, model_dir: str = '.
     
     return df
 
-def process_data(df: pd.DataFrame, feature_col: str, label_col: str, **kwargs) -> pd.DataFrame:
-    """Process a classification dataset containing binary classes along with string features and labels
-    using a sentencepiece model tokenizer. Keyword arguments can be provided for specific functions such as
-    the name of the dataset for dataset-specific actions or corpus path. See other functions for kwargs.
+def process_data(data_funcs: tuple[tuple], feature_col: str, label_col: str, **kwargs) -> pd.DataFrame:
+    """Process given datasets using their respective cleaning and processing functions defined by the user into
+    a singular dataset consisting of its features and labels.
 
     Args:
-        df (pd.DataFrame): Dataframe of the dataset that will be processed.
-        feature_col (str): Name of the feature column to be processed inside the df DataFrame.
-        label_col (str): Name of the label column to be processed inside the df DataFrame.
-        
+        data_funcs (tuple[tuple]): Datasets paired with their specific cleaning/processing functions inside a tuple.
+        feature_col (str): Name of the feature column in the returned dataframe.
+        label_col (str): Name of the label column in the returned dataframe.
+
     Returns:
-        pd.DataFrame: Processed dataset with feature and label encoded in numerical representations.
+        pd.DataFrame: A processed dataframe with columns: feature_col and label_col.
     """
     
     # Kwargs
-    df_name = kwargs.get('df_name')
     corpus_path = os.path.join(kwargs.get('dataset_dir','..//datasets'), 'corpus.txt')
     tokenizer_dir = kwargs.get('tokenizer_dir', os.path.join('..','models','bpe'))
     model_prefix = kwargs.get('model_prefix', 'spm')
@@ -166,20 +164,15 @@ def process_data(df: pd.DataFrame, feature_col: str, label_col: str, **kwargs) -
         )
     test_size = kwargs.get('test_size', 0.2)
     
-    # Specific Dataset Processes
-    # Combine Author and Content
-    if df_name == 'Philippine Fake News Corpus.csv':
-        df = combine_author(
-            df = df,
-            author_col = 'Brand',
-            content_col = 'Content'
-        )
+    # Placeholder for combined dataset
+    df_list = []
+    
+    # Clean Datasets using specific functions in data_funcs pair
+    for dataset, clean_and_process in data_funcs:
+        dataset = clean_and_process(dataset, feature_col = feature_col, label_col = label_col)
+        df_list.append(dataset)
         
-        df = select_columns(
-            df = df,
-            selected_cols = ['Content','Label']
-        )
-        
+    df = pd.concat(df_list, ignore_index = True)
     
     # Balance Classes
     label_dist = df[label_col].value_counts()
@@ -210,12 +203,13 @@ def process_data(df: pd.DataFrame, feature_col: str, label_col: str, **kwargs) -
         random_state = random_state
     )
     
+    # Create corpus if no corpus is present
     if not os.path.isfile(corpus_path):
         with open(corpus_path, 'w', encoding = 'utf-8') as file:
             for row in train[feature_col]:
                 file.write(row + '\n')
     
-    
+    # Train tokenizer if no tokenizer is present
     if not os.path.isfile(os.path.join(tokenizer_dir, model_prefix + '.model')):
         train_tokenizer(
             doc = corpus_path,

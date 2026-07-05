@@ -284,7 +284,7 @@ def get_config(version: float, verbose: bool = True) -> dict | None:
     config = None
     
     if verbose:
-        print(f'Found {len(runs)} {'records' if len(runs) > 1 else 'record'} in database.')
+        print(f'Found {len(runs)} {'records' if len(runs) > 1 else 'record'} in database with version {version}.')
     
     if len(runs):        
         # Get most recent record
