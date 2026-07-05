@@ -14,8 +14,9 @@ parser.add_argument('-k', '--kernel_size', type = int, default = 5, help = 'Kern
 parser.add_argument('-vc', '--vocab_size', type = int, default = 8000, help = 'Size of the vocabulary the model is trained on')
 parser.add_argument('-pid', '--pad_id', type = int, default = 3, help = 'Integer used to register as the padding token')
 parser.add_argument('-b', '--batch_size', type = int, default = 32, help = 'Size of the batches for the dataloader the model uses')
-parser.add_argument('-v', '--verbose', type = bool, default = True, help = 'Whether or not the program should output progress reports')
+parser.add_argument('-vb', '--verbose', type = bool, default = True, help = 'Whether or not the program should output progress reports')
 parser.add_argument('-rs', '--random_state', type = int, default = 42, help = 'Seed used for the psuedo-random functions in the program')
+parser.add_argument('-v', '--model_version', type = float, default = None, help = 'Specify a recorded model version to use in training.')
 
 args = parser.parse_args()
 
@@ -24,13 +25,15 @@ if args.verbose:
     print('Preparing dataset...')    
 dataset_dir = os.path.join('datasets')
 
-csv_datasets = os.listdir(dataset_dir)
-csv_datasets.remove('corpus.txt')
-
-dataset_paths = [(csv, os.path.join(dataset_dir, csv)) for csv in csv_datasets]
-
 model_dir = os.path.join('models','FakeNewsDetector')
 tokenizer_dir = os.path.join('models','bpe')
+
+# Set Experiment
+experiment = model_building.get_experiment(
+    exp_name = 'FakeNewsDetector',
+    uri_path = os.path.join(model_dir, 'mlflow.db')
+)
+mlflow.set_experiment(experiment_id = experiment.experiment_id)
 
 # -----------------------------------------------------------------------------------------------------
 # Functions for data processing
@@ -54,12 +57,13 @@ def ph_corpus_process(df: pd.DataFrame, feature_col: str, label_col: str) -> pd.
     return df
 
 
-# -----------------------------------------------------------------------------------------------------
-
 # Creating dataset-function pairs for processing
 data_funcs = (
+    # Add dataset, process_function pairs here
     (ph_corpus_df, ph_corpus_process),
 )
+
+# -----------------------------------------------------------------------------------------------------
     
 train, test = data_processing.process_data(
     data_funcs = data_funcs,
@@ -82,33 +86,24 @@ max_seq = max(pd.concat([
 
 
 # Build the Model
-config = {
-    'vocab_size': args.vocab_size,
-    'embed_dim': args.embed_dim,
-    'pad_id': args.pad_id,
-    'conv_dim': args.conv_dim,
-    'kernel_size': args.kernel_size,
-    'max_seq': max_seq,
-}
+if args.model_version:
+    # Load existing config in database of specified version
+    if args.verbose:
+        print(f'Model Version Provided. Searching for model version {args.model_version}') 
 
-# -----------------------------------------------------------------------------------------------
-# TODO
-# Add an argument to let the user choose a version to train, then get the config of that version
-
-
-# -----------------------------------------------------------------------------------------------
+    config = model_building.get_config(args.model_version, args.verbose)
+else: 
+    # Create custom model
+    config = {
+        'vocab_size': args.vocab_size,
+        'embed_dim': args.embed_dim,
+        'pad_id': args.pad_id,
+        'conv_dim': args.conv_dim,
+        'kernel_size': args.kernel_size,
+        'max_seq': max_seq,
+    }
 
 model = model_building.FakeNewsDetector(**config)
-
-# Check if the model has the same params as recently trained models, then increment model_version if true
-model_dir = os.path.join('models','FakeNewsDetector')
-os.listdir(model_dir)
-
-experiment = model_building.get_experiment(
-    exp_name = 'FakeNewsDetector',
-    uri_path = os.path.join(model_dir, 'mlflow.db')
-)
-mlflow.set_experiment(experiment_id = experiment.experiment_id)
  
 # Get finished runs database
 recent_runs = mlflow.search_runs(
@@ -123,23 +118,27 @@ latest_version = max(versions)
 if args.verbose:
     print('Getting Latest Version in Database.')
 
+# Retrieve latest version config to compare to model that is being trained
 expected_params = model_building.get_config(latest_version)
 
+# Identify config mismatch
 param_mismatch = 0
 for k,v in config.items():    
     if not v == expected_params[k]:
         param_mismatch += 1
         
 if args.verbose:
+    print(f'Comparing current current configuration to latest configuration')
     print(f'{param_mismatch} Parameter Mismatch Detected.')
 
+# Retrieve most recent existing version of current configuration if any
 model_version = model_building.get_version(config, args.verbose)
 
+# Increment model version according to latest version and param mismatch
 if model_version is None:
-    # Get last trained model version
-    model_version = float(latest_run['tags.version'])
-
     if param_mismatch:
+        model_version = latest_version
+        
         # Increment depend on whether there are massive changes or minor
         model_version += 0.1 if param_mismatch < 6 else 1.0
 
